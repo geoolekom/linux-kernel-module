@@ -15,6 +15,7 @@ install:
 reinstall: all
 	sudo rmmod hello || true
 	sudo insmod $(BUILD_DIR)/hello.ko
+	sudo dmesg | tail -n 5
 
 
 .PHONY: all clean install reinstall help
