@@ -1,6 +1,6 @@
 obj-m += hello.o
 
-hello-objs := src/hello.o
+hello-objs := src/main.o src/proc.o
 
 # For multiple modules in subdirectories:
 # obj-m += module2.o
