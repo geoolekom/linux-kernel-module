@@ -5,6 +5,7 @@
 #include <linux/moduleparam.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
+#include <linux/workqueue.h>
 
 static int sleep_ms = 1000;
 
@@ -27,10 +28,26 @@ static int monitor_fn(void *data) {
 
 static struct task_struct *monitor_task;
 
+static void work_fn(struct work_struct *work) {
+  int count;
+  for (int i = 0; i < 10; i++) {
+    struct task_struct *task;
+    count = 0;
+    rcu_read_lock();
+    for_each_process(task) { count++; }
+    rcu_read_unlock();
+    pr_info("work_fn: %d tasks alive\n", count);
+    msleep(sleep_ms);
+  }
+}
+
+static DECLARE_WORK(work, work_fn);
+
 static int __init main_init(void) {
   pr_info("Current init stats: %d %s %d\n", current->pid, current->comm,
           current->tgid);
 
+  schedule_work(&work);
   monitor_task = kthread_run(monitor_fn, NULL, "monitor");
   if (IS_ERR(monitor_task)) {
     pr_err("Failed to create monitor task: %ld\n", PTR_ERR(monitor_task));
@@ -41,6 +58,7 @@ static int __init main_init(void) {
 }
 
 static void __exit main_exit(void) {
+  cancel_work_sync(&work);
   if (monitor_task) {
     kthread_stop(monitor_task);
     monitor_task = NULL;
