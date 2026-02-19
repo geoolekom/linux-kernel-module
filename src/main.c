@@ -6,14 +6,10 @@
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
 
-static int log_level = 0;
-static char *module_name = "hello";
+static int sleep_ms = 1000;
 
-module_param(log_level, int, 0644);
-MODULE_PARM_DESC(log_level, "Log level");
-
-module_param(module_name, charp, 0644);
-MODULE_PARM_DESC(module_name, "Module name");
+module_param(sleep_ms, int, 0644);
+MODULE_PARM_DESC(sleep_ms, "Sleep time in milliseconds");
 
 static int monitor_fn(void *data) {
   struct task_struct *task;
@@ -24,7 +20,7 @@ static int monitor_fn(void *data) {
     for_each_process(task) { count++; }
     rcu_read_unlock();
     pr_info("kmonitor: %d tasks alive\n", count);
-    msleep(1000);
+    msleep(sleep_ms);
   }
   return 0;
 }
@@ -40,7 +36,7 @@ static int __init main_init(void) {
     pr_err("Failed to create monitor task: %ld\n", PTR_ERR(monitor_task));
     return PTR_ERR(monitor_task);
   }
-  pr_info("Module loaded %d %s", log_level, module_name);
+  pr_info("Module loaded: sleep_ms=%d", sleep_ms);
   return 0;
 }
 
@@ -50,8 +46,6 @@ static void __exit main_exit(void) {
     monitor_task = NULL;
   }
   pr_info("Module unloaded");
-  pr_info("Current exit stats: %d %s %d\n", current->pid, current->comm,
-          current->tgid);
   return;
 }
 
