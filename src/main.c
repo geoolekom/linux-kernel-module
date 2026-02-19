@@ -1,4 +1,6 @@
+#include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/sched.h>
@@ -13,24 +15,40 @@ MODULE_PARM_DESC(log_level, "Log level");
 module_param(module_name, charp, 0644);
 MODULE_PARM_DESC(module_name, "Module name");
 
+static int monitor_fn(void *data) {
+  struct task_struct *task;
+  int count;
+  while (!kthread_should_stop()) {
+    count = 0;
+    rcu_read_lock();
+    for_each_process(task) { count++; }
+    rcu_read_unlock();
+    pr_info("kmonitor: %d tasks alive\n", count);
+    msleep(1000);
+  }
+  return 0;
+}
+
+static struct task_struct *monitor_task;
+
 static int __init main_init(void) {
-  pr_info("Module loaded %d %s", log_level, module_name);
   pr_info("Current init stats: %d %s %d\n", current->pid, current->comm,
           current->tgid);
 
-  struct task_struct *task;
-  int count = 0;
-  rcu_read_lock();
-  for_each_process(task) {
-    pr_info("Process: %d %s %d\n", task->pid, task->comm, task->tgid);
-    count++;
+  monitor_task = kthread_run(monitor_fn, NULL, "monitor");
+  if (IS_ERR(monitor_task)) {
+    pr_err("Failed to create monitor task: %ld\n", PTR_ERR(monitor_task));
+    return PTR_ERR(monitor_task);
   }
-  rcu_read_unlock();
-  pr_info("Total processes: %d\n", count);
+  pr_info("Module loaded %d %s", log_level, module_name);
   return 0;
 }
 
 static void __exit main_exit(void) {
+  if (monitor_task) {
+    kthread_stop(monitor_task);
+    monitor_task = NULL;
+  }
   pr_info("Module unloaded");
   pr_info("Current exit stats: %d %s %d\n", current->pid, current->comm,
           current->tgid);
