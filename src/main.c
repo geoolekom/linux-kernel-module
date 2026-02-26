@@ -5,23 +5,49 @@
 #include <linux/moduleparam.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
+#include <linux/signal.h>
 #include <linux/workqueue.h>
 
-static int sleep_ms = 1000;
+static int sleep_ms = 10000;
 
 module_param(sleep_ms, int, 0644);
 MODULE_PARM_DESC(sleep_ms, "Sleep time in milliseconds");
 
 static int monitor_fn(void *data) {
+  allow_signal(SIGINT);
+  allow_signal(SIGTERM);
+
+  pr_info("Current kmonitor stats: pid=%d comm=%s\n", current->pid,
+          current->comm);
+
   struct task_struct *task;
   int count;
   while (!kthread_should_stop()) {
     count = 0;
-    rcu_read_lock();
-    for_each_process(task) { count++; }
-    rcu_read_unlock();
-    pr_info("kmonitor: %d tasks alive\n", count);
-    msleep(sleep_ms);
+    unsigned long sleep_time_left = msleep_interruptible(sleep_ms);
+    if (sleep_time_left != 0) {
+      pr_info("kmonitor: interrupted, sleep time left: %lu", sleep_time_left);
+      if (signal_pending(current)) {
+        pr_info("kmonitor: interrupted by signal");
+        sigset_t *pending = &current->pending.signal;
+
+        if (sigismember(pending, SIGINT)) {
+          pr_info("kmonitor: interrupted by SIGINT");
+
+          rcu_read_lock();
+          for_each_process(task) { count++; }
+          rcu_read_unlock();
+          pr_info("kmonitor: %d tasks alive\n", count);
+          continue;
+        }
+        if (sigismember(pending, SIGTERM)) {
+          pr_info("kmonitor: interrupted by SIGTERM");
+          break;
+        }
+
+        flush_signals(current);
+      }
+    }
   }
   return 0;
 }
