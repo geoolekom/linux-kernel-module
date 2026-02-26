@@ -1,6 +1,8 @@
 obj-m += hello.o
+hello-objs := src/main.o
 
-hello-objs := src/main.o src/proc.o
+obj-m += schedinfo.o
+schedinfo-objs := src/schedinfo.o
 
 # For multiple modules in subdirectories:
 # obj-m += module2.o
