@@ -1,36 +1,68 @@
-#include <linux/dcache.h>
-#include <linux/in.h>
-#include <linux/inet.h>
+#include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
-#include <linux/path.h>
+#include <linux/sched.h>
+#include <linux/sched/signal.h>
+#include <linux/workqueue.h>
 
-static int log_level = 0;
-static char *module_name = "hello";
+static int sleep_ms = 1000;
 
-module_param(log_level, int, 0644);
-MODULE_PARM_DESC(log_level, "Log level");
+module_param(sleep_ms, int, 0644);
+MODULE_PARM_DESC(sleep_ms, "Sleep time in milliseconds");
 
-module_param(module_name, charp, 0644);
-MODULE_PARM_DESC(module_name, "Module name");
-
-static void log_file_access(struct file *filp) {
-  struct dentry *dentry = filp->f_path.dentry;
-  pr_info("File: %pd --- %pd4\n", dentry, dentry);
+static int monitor_fn(void *data) {
+  struct task_struct *task;
+  int count;
+  while (!kthread_should_stop()) {
+    count = 0;
+    rcu_read_lock();
+    for_each_process(task) { count++; }
+    rcu_read_unlock();
+    pr_info("kmonitor: %d tasks alive\n", count);
+    msleep(sleep_ms);
+  }
+  return 0;
 }
 
+static struct task_struct *monitor_task;
+
+static void work_fn(struct work_struct *work) {
+  int count;
+  for (int i = 0; i < 10; i++) {
+    struct task_struct *task;
+    count = 0;
+    rcu_read_lock();
+    for_each_process(task) { count++; }
+    rcu_read_unlock();
+    pr_info("work_fn: %d tasks alive\n", count);
+    msleep(sleep_ms);
+  }
+}
+
+static DECLARE_WORK(work, work_fn);
+
 static int __init main_init(void) {
-  __be32 ipv4_addr = in_aton("192.168.1.100");
-  unsigned char mac[6] = {0x00, 0x11, 0x22, 0x33, 0x44, 0x55};
-  pr_info("IPv4: %pI4\n", &ipv4_addr);
-  pr_info("MAC: %pM\n", mac);
-  pr_info("Module loaded %d %s", log_level, module_name);
-  pr_info("Current PID: %d\n", current->pid);
+  pr_info("Current init stats: %d %s %d\n", current->pid, current->comm,
+          current->tgid);
+
+  schedule_work(&work);
+  monitor_task = kthread_run(monitor_fn, NULL, "monitor");
+  if (IS_ERR(monitor_task)) {
+    pr_err("Failed to create monitor task: %ld\n", PTR_ERR(monitor_task));
+    return PTR_ERR(monitor_task);
+  }
+  pr_info("Module loaded: sleep_ms=%d", sleep_ms);
   return 0;
 }
 
 static void __exit main_exit(void) {
+  cancel_work_sync(&work);
+  if (monitor_task) {
+    kthread_stop(monitor_task);
+    monitor_task = NULL;
+  }
   pr_info("Module unloaded");
   return;
 }
