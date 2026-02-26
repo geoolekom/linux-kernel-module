@@ -29,7 +29,7 @@ static int monitor_fn(void *data) {
       pr_info("kmonitor: interrupted, sleep time left: %lu", sleep_time_left);
       if (signal_pending(current)) {
         pr_info("kmonitor: interrupted by signal");
-        sigset_t *pending = &current->pending.signal;
+        sigset_t *pending = &current->signal->shared_pending.signal;
 
         if (sigismember(pending, SIGINT)) {
           pr_info("kmonitor: interrupted by SIGINT");
@@ -38,14 +38,14 @@ static int monitor_fn(void *data) {
           for_each_process(task) { count++; }
           rcu_read_unlock();
           pr_info("kmonitor: %d tasks alive\n", count);
+          flush_signals(current);
           continue;
         }
         if (sigismember(pending, SIGTERM)) {
           pr_info("kmonitor: interrupted by SIGTERM");
+          flush_signals(current);
           break;
         }
-
-        flush_signals(current);
       }
     }
   }
