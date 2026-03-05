@@ -13,8 +13,8 @@ install:
 	$(MAKE) -C $(KDIR) M=$(BUILD_DIR) modules_install
 
 reinstall: all
-	sudo rmmod hello || true
-	sudo insmod $(BUILD_DIR)/hello.ko
+	sudo rmmod $(name) || true
+	sudo insmod $(BUILD_DIR)/$(name).ko
 	sudo dmesg | tail -n 5
 
 
