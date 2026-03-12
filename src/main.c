@@ -6,6 +6,7 @@
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
 #include <linux/signal.h>
+#include <linux/slab.h>
 #include <linux/workqueue.h>
 
 #define MONITOR_BUF_ENTRIES 64
@@ -21,14 +22,25 @@ struct snapshot {
   u32 cpu;
 };
 
-static void print_statistics(const char *name) {
+static void print_statistics(const char *name, struct snapshot *s) {
+  if (s == NULL) {
+    pr_warn("No snapshot!");
+  }
   struct task_struct *task;
   int count = 0;
 
   rcu_read_lock();
   for_each_process(task) { count++; }
   rcu_read_unlock();
-  pr_info("%s: %d tasks alive\n", name, count);
+
+  pr_info("%s: %lld: CPU %d, %d tasks alive\n", name, ktime_get(),
+          smp_processor_id(), count);
+
+  // s->ts = ktime_get();
+  // s->nr_procs = count;
+  // s->cpu = smp_processor_id();
+  // pr_info("%s: %lld: CPU %d, %d tasks alive\n", name, s->ts, s->cpu,
+  // s->nr_procs);
 }
 
 static int monitor_fn(void *data) {
@@ -37,6 +49,13 @@ static int monitor_fn(void *data) {
 
   pr_info("Current kmonitor stats: pid=%d comm=%s\n", current->pid,
           current->comm);
+
+  struct snapshot *snapshots;
+  int snap_head = 0;
+  snapshots = kcalloc(MONITOR_BUF_ENTRIES, sizeof(*snapshots), GFP_KERNEL);
+  if (snapshots == NULL) {
+    return -ENOMEM;
+  }
 
   while (!kthread_should_stop()) {
     unsigned long sleep_time_left = msleep_interruptible(sleep_ms);
@@ -49,7 +68,9 @@ static int monitor_fn(void *data) {
         if (sigismember(pending, SIGINT)) {
           pr_info("kmonitor: interrupted by SIGINT");
 
-          print_statistics("kmonitor");
+          print_statistics("kmonitor",
+                           &snapshots[snap_head % MONITOR_BUF_ENTRIES]);
+          snap_head++;
           flush_signals(current);
           continue;
         }
@@ -61,6 +82,8 @@ static int monitor_fn(void *data) {
       }
     }
   }
+
+  kfree(snapshots);
   return 0;
 }
 
@@ -68,7 +91,7 @@ static struct task_struct *monitor_task;
 
 static void work_fn(struct work_struct *work) {
   for (int i = 0; i < 10; i++) {
-    print_statistics("work_fn");
+    print_statistics("work_fn", NULL);
     msleep(sleep_ms);
   }
 }
