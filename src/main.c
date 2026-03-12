@@ -8,10 +8,28 @@
 #include <linux/signal.h>
 #include <linux/workqueue.h>
 
+#define MONITOR_BUF_ENTRIES 64
+
 static int sleep_ms = 10000;
 
 module_param(sleep_ms, int, 0644);
 MODULE_PARM_DESC(sleep_ms, "Sleep time in milliseconds");
+
+struct snapshot {
+  ktime_t ts;
+  u32 nr_procs;
+  u32 cpu;
+};
+
+static void print_statistics(const char *name) {
+  struct task_struct *task;
+  int count = 0;
+
+  rcu_read_lock();
+  for_each_process(task) { count++; }
+  rcu_read_unlock();
+  pr_info("%s: %d tasks alive\n", name, count);
+}
 
 static int monitor_fn(void *data) {
   allow_signal(SIGINT);
@@ -20,10 +38,7 @@ static int monitor_fn(void *data) {
   pr_info("Current kmonitor stats: pid=%d comm=%s\n", current->pid,
           current->comm);
 
-  struct task_struct *task;
-  int count;
   while (!kthread_should_stop()) {
-    count = 0;
     unsigned long sleep_time_left = msleep_interruptible(sleep_ms);
     if (sleep_time_left != 0) {
       pr_info("kmonitor: interrupted, sleep time left: %lu", sleep_time_left);
@@ -34,10 +49,7 @@ static int monitor_fn(void *data) {
         if (sigismember(pending, SIGINT)) {
           pr_info("kmonitor: interrupted by SIGINT");
 
-          rcu_read_lock();
-          for_each_process(task) { count++; }
-          rcu_read_unlock();
-          pr_info("kmonitor: %d tasks alive\n", count);
+          print_statistics("kmonitor");
           flush_signals(current);
           continue;
         }
@@ -55,14 +67,8 @@ static int monitor_fn(void *data) {
 static struct task_struct *monitor_task;
 
 static void work_fn(struct work_struct *work) {
-  int count;
   for (int i = 0; i < 10; i++) {
-    struct task_struct *task;
-    count = 0;
-    rcu_read_lock();
-    for_each_process(task) { count++; }
-    rcu_read_unlock();
-    pr_info("work_fn: %d tasks alive\n", count);
+    print_statistics("work_fn");
     msleep(sleep_ms);
   }
 }
