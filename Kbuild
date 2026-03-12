@@ -1,5 +1,8 @@
 obj-m += hello.o
-hello-objs := src/main.o
+hello-objs := src/hello.o
+
+obj-m += monitor.o
+monitor-objs := src/main.o
 
 obj-m += schedinfo.o
 schedinfo-objs := src/schedinfo.o
