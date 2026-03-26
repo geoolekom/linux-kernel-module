@@ -4,6 +4,9 @@ hello-objs := src/hello.o
 obj-m += monitor.o
 monitor-objs := src/main.o
 
+obj-m += race.o
+race-objs := src/race.o
+
 obj-m += schedinfo.o
 schedinfo-objs := src/schedinfo.o
 

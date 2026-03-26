@@ -33,14 +33,16 @@ static void print_statistics(const char *name, struct snapshot *s) {
   for_each_process(task) { count++; }
   rcu_read_unlock();
 
-  pr_info("%s: %lld: CPU %d, %d tasks alive\n", name, ktime_get(),
-          smp_processor_id(), count);
+  pr_info("%s: %lld: CPU %d, %d tasks alive, snapshot %px\n", name, ktime_get(),
+          smp_processor_id(), count, s);
 
-  // s->ts = ktime_get();
-  // s->nr_procs = count;
-  // s->cpu = smp_processor_id();
-  // pr_info("%s: %lld: CPU %d, %d tasks alive\n", name, s->ts, s->cpu,
-  // s->nr_procs);
+  *s = (struct snapshot){
+      .ts = ktime_get(),
+      .nr_procs = count,
+      .cpu = smp_processor_id(),
+  };
+  pr_info("%s: %lld: CPU %d, %d tasks alive\n", name, s->ts, s->cpu,
+          s->nr_procs);
 }
 
 static int monitor_fn(void *data) {
