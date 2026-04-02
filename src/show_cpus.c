@@ -11,10 +11,12 @@ static DEFINE_PER_CPU(unsigned long, counter);
 static struct task_struct *task1, *task2;
 
 static int increment_function(void *data) {
-  while (!kthread_should_stop() && counter < MAX_COUNT) {
-    pr_info("Counter pid=%d: %lu CPU: %d", current->pid, counter,
-            smp_processor_id());
-    this_cpu_inc(counter);
+  while (!kthread_should_stop()) {
+    if (this_cpu_read(counter) < MAX_COUNT) {
+      pr_info("Counter pid=%d: %lu CPU: %d", current->pid,
+              this_cpu_read(counter), smp_processor_id());
+      this_cpu_inc(counter);
+    }
     msleep_interruptible(1000);
   }
   return 0;

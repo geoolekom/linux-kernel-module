@@ -23,9 +23,6 @@ struct snapshot {
 };
 
 static void print_statistics(const char *name, struct snapshot *s) {
-  if (s == NULL) {
-    pr_warn("No snapshot!");
-  }
   struct task_struct *task;
   int count = 0;
 
@@ -35,6 +32,11 @@ static void print_statistics(const char *name, struct snapshot *s) {
 
   pr_info("%s: %lld: CPU %d, %d tasks alive, snapshot %px\n", name, ktime_get(),
           smp_processor_id(), count, s);
+
+  if (s == NULL) {
+    pr_warn("No snapshot!");
+    return;
+  }
 
   *s = (struct snapshot){
       .ts = ktime_get(),

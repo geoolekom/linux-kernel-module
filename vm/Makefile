@@ -27,10 +27,20 @@ start:
 		-drive file=$(VM_DIR)/disk.qcow2,if=virtio \
 		-drive file=$(VM_DIR)/seed.iso,if=virtio,format=raw \
 		-net nic -net user,hostfwd=tcp::2222-:22 \
-		-virtfs local,path=$(REPO),mount_tag=host,security_model=mapped-xattr
+		-virtfs local,path=$(REPO),mount_tag=host,security_model=mapped-xattr \
+		-qmp unix:$(VM_DIR)/qemu.sock,server,nowait
+
+status:
+	@echo '{"execute":"qmp_capabilities"}{"execute":"query-status"}' \
+		| socat - UNIX-CONNECT:$(VM_DIR)/qemu.sock 2>/dev/null \
+		| jq -s '.[] | select(.return.status) | .return.status' \
+		|| echo "VM not running"
 
 stop:
 	$(SSH) poweroff || true
+
+kill:
+	@kill $$(cat $(VM_DIR)/qemu.pid) 2>/dev/null && echo "QEMU killed" || echo "QEMU not running"
 
 provision:
 	$(SSH) "apt-get update && apt-get install -y build-essential linux-headers-$$(uname -r) rsync"

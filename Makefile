@@ -4,6 +4,7 @@ SRC_DIR := $(CURDIR)
 
 all:
 	mkdir -p $(BUILD_DIR)
+	cp -r src/ $(BUILD_DIR)
 	$(MAKE) -C $(KDIR) M=$(BUILD_DIR) src=$(SRC_DIR) modules
 
 clean:
