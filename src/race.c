@@ -9,7 +9,7 @@
 static DEFINE_PER_CPU(unsigned long, counter);
 static struct task_struct *task1, *task2;
 
-static int increment_function(void *data) {
+static int increment_function(void* data) {
   while (!kthread_should_stop() && counter < MAX_COUNT) {
     pr_info("Counter pid=%d: %lu", current->pid, counter);
     this_cpu_inc(counter);

@@ -22,8 +22,8 @@ struct snapshot {
   u32 cpu;
 };
 
-static void print_statistics(const char *name, struct snapshot *s) {
-  struct task_struct *task;
+static void print_statistics(const char* name, struct snapshot* s) {
+  struct task_struct* task;
   int count = 0;
 
   rcu_read_lock();
@@ -47,14 +47,14 @@ static void print_statistics(const char *name, struct snapshot *s) {
           s->nr_procs);
 }
 
-static int monitor_fn(void *data) {
+static int monitor_fn(void* data) {
   allow_signal(SIGINT);
   allow_signal(SIGTERM);
 
   pr_info("Current kmonitor stats: pid=%d comm=%s\n", current->pid,
           current->comm);
 
-  struct snapshot *snapshots;
+  struct snapshot* snapshots;
   int snap_head = 0;
   snapshots = kcalloc(MONITOR_BUF_ENTRIES, sizeof(*snapshots), GFP_KERNEL);
   if (snapshots == NULL) {
@@ -67,7 +67,7 @@ static int monitor_fn(void *data) {
       pr_info("kmonitor: interrupted, sleep time left: %lu", sleep_time_left);
       if (signal_pending(current)) {
         pr_info("kmonitor: interrupted by signal");
-        sigset_t *pending = &current->signal->shared_pending.signal;
+        sigset_t* pending = &current->signal->shared_pending.signal;
 
         if (sigismember(pending, SIGINT)) {
           pr_info("kmonitor: interrupted by SIGINT");
@@ -91,9 +91,9 @@ static int monitor_fn(void *data) {
   return 0;
 }
 
-static struct task_struct *monitor_task;
+static struct task_struct* monitor_task;
 
-static void work_fn(struct work_struct *work) {
+static void work_fn(struct work_struct* work) {
   for (int i = 0; i < 10; i++) {
     print_statistics("work_fn", NULL);
     msleep(sleep_ms);
