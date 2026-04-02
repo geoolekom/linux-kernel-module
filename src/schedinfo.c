@@ -3,7 +3,7 @@
 #include <linux/sched.h>
 
 static int __init schedinfo_init(void) {
-  struct task_struct *task = current;
+  struct task_struct* task = current;
   pr_info("schedinfo: %d %s %d\n", task->pid, task->comm, task->tgid);
   pr_info("CFS params: %llu %llu %lu %lu", task->se.vruntime,
           task->se.sum_exec_runtime, task->nvcsw, task->nivcsw);

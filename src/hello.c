@@ -1,11 +1,22 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/usb.h>
+#include <linux/vmalloc.h>
 
 static int __init hello_init(void) {
-  char buffer[8192];
-  memset(buffer, 0, sizeof(buffer));
-  printk(KERN_WARNING "Value: %p\n", buffer);
+  pr_info("Hello!\n");
+  char* buf = kmalloc(16, GFP_KERNEL);
+  char* vbuf = vmalloc(16);
+
+  int i;
+  for (i = 0; i < 16; i++) {
+    pr_info("Addr %d %px", i, &buf[i]);
+  }
+  for (i = 0; i < 16; i++) {
+    pr_info("Vaddr %d %px", i, &vbuf[i]);
+  }
+  kfree(buf);
+  vfree(vbuf);
   return 0;
 }
 

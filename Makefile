@@ -4,6 +4,7 @@ SRC_DIR := $(CURDIR)
 
 all:
 	mkdir -p $(BUILD_DIR)
+	cp -r src/ $(BUILD_DIR)
 	$(MAKE) -C $(KDIR) M=$(BUILD_DIR) src=$(SRC_DIR) modules
 
 clean:
@@ -11,11 +12,12 @@ clean:
 
 install:
 	$(MAKE) -C $(KDIR) M=$(BUILD_DIR) modules_install
+	depmod
 
 reinstall: all
-	sudo rmmod $(name) || true
-	sudo insmod $(BUILD_DIR)/$(name).ko
-	sudo dmesg | tail -n 5
+	rmmod $(name) || true
+	insmod $(BUILD_DIR)/$(name).ko
+	dmesg | tail -n 5
 
 
 .PHONY: all clean install reinstall help

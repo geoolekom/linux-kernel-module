@@ -1,0 +1,14 @@
+[Unit]
+Description=Monitor Kernel Module
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/modprobe monitor
+ExecStop=/sbin/rmmod monitor
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
