@@ -1,7 +1,7 @@
 REPO := $(realpath $(CURDIR)/..)
 VM_DIR := $(CURDIR)/.vm
 SSH_KEY := ~/.ssh/id_ed25519
-SSH := ssh -p 2222 -i ${SSH_KEY} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost
+SSH := ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@localhost
 
 IMG_URL := https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-arm64.img
 IMG := $(VM_DIR)/noble-server-cloudimg-arm64.img
@@ -38,3 +38,8 @@ provision:
 	$(SSH) "mkdir -p /mnt/host"
 	$(SSH) "grep -q host /etc/fstab || echo 'host /mnt/host 9p trans=virtio,rw 0 0' >> /etc/fstab"
 	$(SSH) "mount /mnt/host 2>/dev/null || true"
+
+sync-headers:
+	mkdir -p ../.kheaders
+	$(SSH) "rsync -azL --delete root@localhost:2222:/lib/modules/$$(uname -r)/build/include/ /mnt/host/.kheaders/include/"
+	$(SSH) "rsync -azL --delete root@localhost:2222:/lib/modules/$$(uname -r)/build/arch/ /mnt/host/.kheaders/arch/"
