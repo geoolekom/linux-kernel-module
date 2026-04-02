@@ -1,0 +1,17 @@
+{
+  "configurations": [{
+    "name": "Kernel (ARM64)",
+    "includePath": [
+      "${workspaceFolder}/.kheaders/include",
+      "${workspaceFolder}/.kheaders/include/uapi",
+      "${workspaceFolder}/.kheaders/arch/arm64/include",
+      "${workspaceFolder}/.kheaders/arch/arm64/include/generated"
+    ],
+    "defines": [
+      "__KERNEL__", "MODULE", "__aarch64__"
+    ],
+    "cStandard": "gnu11",
+    "intelliSenseMode": "linux-gcc-arm64"
+  }],
+  "version": 4
+}
