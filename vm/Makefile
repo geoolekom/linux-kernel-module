@@ -21,6 +21,10 @@ start:
 	qemu-system-aarch64 \
 		-M virt -accel hvf -cpu host \
 		-m 2G -smp 2 \
+		-object memory-backend-ram,size=1G,id=m0 \
+		-object memory-backend-ram,size=1G,id=m1 \
+		-numa node,memdev=m0,cpus=0,nodeid=0 \
+		-numa node,memdev=m1,cpus=1,nodeid=1 \
 		-display none -serial null -daemonize \
 		-pidfile $(VM_DIR)/qemu.pid \
 		-drive if=pflash,format=raw,file=/opt/homebrew/share/qemu/edk2-aarch64-code.fd,readonly=on \
