@@ -22,7 +22,8 @@ struct snapshot {
   u32 cpu;
 };
 
-static void print_statistics(const char* name, struct snapshot* s) {
+static void print_statistics(const char* name, struct snapshot* s,
+                             int snap_head) {
   struct task_struct* task;
   int count = 0;
 
@@ -38,7 +39,7 @@ static void print_statistics(const char* name, struct snapshot* s) {
     return;
   }
 
-  *s = (struct snapshot){
+  s[snap_head % MONITOR_BUF_ENTRIES] = (struct snapshot){
       .ts = ktime_get(),
       .nr_procs = count,
       .cpu = smp_processor_id(),
@@ -72,8 +73,7 @@ static int monitor_fn(void* data) {
         if (sigismember(pending, SIGINT)) {
           pr_info("kmonitor: interrupted by SIGINT");
 
-          print_statistics("kmonitor",
-                           &snapshots[snap_head % MONITOR_BUF_ENTRIES]);
+          print_statistics("kmonitor", snapshots, snap_head);
           snap_head++;
           flush_signals(current);
           continue;
@@ -93,20 +93,10 @@ static int monitor_fn(void* data) {
 
 static struct task_struct* monitor_task;
 
-static void work_fn(struct work_struct* work) {
-  for (int i = 0; i < 10; i++) {
-    print_statistics("work_fn", NULL);
-    msleep(sleep_ms);
-  }
-}
-
-static DECLARE_WORK(work, work_fn);
-
 static int __init main_init(void) {
   pr_info("Current init stats: %d %s %d\n", current->pid, current->comm,
           current->tgid);
 
-  schedule_work(&work);
   monitor_task = kthread_run(monitor_fn, NULL, "monitor");
   if (IS_ERR(monitor_task)) {
     pr_err("Failed to create monitor task: %ld\n", PTR_ERR(monitor_task));
@@ -117,7 +107,6 @@ static int __init main_init(void) {
 }
 
 static void __exit main_exit(void) {
-  cancel_work_sync(&work);
   if (monitor_task) {
     kthread_stop(monitor_task);
     monitor_task = NULL;
