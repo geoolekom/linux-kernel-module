@@ -9,6 +9,7 @@
 #include <linux/sched/signal.h>
 #include <linux/signal.h>
 #include <linux/slab.h>
+#include <linux/topology.h>
 #include <linux/workqueue.h>
 
 #define RING_BUF_SIZE 10
@@ -63,7 +64,9 @@ static int monitor_fn(void* data) {
   while (!kthread_should_stop()) {
     unsigned long sleep_time_left = msleep_interruptible(sleep_ms);
     if (sleep_time_left != 0) {
-      pr_info("kmonitor: interrupted, sleep time left: %lu", sleep_time_left);
+      int node_id = numa_node_id();
+      pr_info("kmonitor: interrupted, sleep time left: %lu, node id: %d",
+              sleep_time_left, node_id);
       if (signal_pending(current)) {
         pr_info("kmonitor: interrupted by signal");
         sigset_t* pending = &current->signal->shared_pending.signal;
@@ -91,6 +94,8 @@ static int log_fn(void* data) {
   struct snapshot s;
   while (!kthread_should_stop()) {
     msleep_interruptible(sleep_ms);
+    int node_id = numa_node_id();
+    pr_info("log: node id: %d", node_id);
     u32 num = kfifo_get(&snap_fifo, &s);
     if (num > 0) {
       pr_info("log: %lld: CPU %d, %d tasks alive, %d Mb free, %d Mb total\n",
