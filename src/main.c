@@ -1,6 +1,6 @@
-#include <linux/compiler.h>
 #include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/kfifo.h>
 #include <linux/kthread.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -26,43 +26,7 @@ struct snapshot {
   u32 total_ram;
 };
 
-struct ring_buf {
-  struct snapshot entries[RING_BUF_SIZE];
-  u32 head;
-  u32 tail;
-};
-
-static struct ring_buf* ring;
-
-static bool ring_produce(struct ring_buf* r, const struct snapshot* s) {
-  u32 head = r->head;
-  u32 tail = READ_ONCE(r->tail);
-
-  if (head - tail > RING_BUF_SIZE) {
-    return false;
-  }
-
-  r->entries[head % RING_BUF_SIZE] = *s;
-  smp_wmb();
-  WRITE_ONCE(r->head, head + 1);
-  return true;
-}
-
-static bool ring_consume(struct ring_buf* r, struct snapshot* s) {
-  u32 head = READ_ONCE(r->head);
-  u32 tail = r->tail;
-
-  if (head == tail) {
-    return false;
-  }
-
-  smp_rmb();
-  *s = r->entries[tail % RING_BUF_SIZE];
-  smp_mb();
-
-  WRITE_ONCE(r->tail, tail + 1);
-  return true;
-}
+static DEFINE_KFIFO(snap_fifo, struct snapshot, 8);
 
 static void produce_snapshot(const char* name) {
   struct task_struct* task;
@@ -83,8 +47,8 @@ static void produce_snapshot(const char* name) {
       .free_ram = si.freeram >> (20 - PAGE_SHIFT),
   };
 
-  bool produced = ring_produce(ring, &s);
-  if (!produced) {
+  u32 num = kfifo_put(&snap_fifo, s);
+  if (num == 0) {
     pr_warn("%s: ring full, dropping", name);
   }
 }
@@ -126,9 +90,9 @@ static int monitor_fn(void* data) {
 static int log_fn(void* data) {
   struct snapshot s;
   while (!kthread_should_stop()) {
-    msleep_interruptible(1000);
-    bool consumed = ring_consume(ring, &s);
-    if (consumed) {
+    msleep_interruptible(sleep_ms);
+    u32 num = kfifo_get(&snap_fifo, &s);
+    if (num > 0) {
       pr_info("log: %lld: CPU %d, %d tasks alive, %d Mb free, %d Mb total\n",
               s.ts, s.cpu, s.nr_procs, s.free_ram, s.total_ram);
     } else {
@@ -144,11 +108,6 @@ static struct task_struct *monitor_task, *log_task;
 static int __init main_init(void) {
   pr_info("Current init stats: %d %s %d\n", current->pid, current->comm,
           current->tgid);
-
-  ring = kzalloc(sizeof(*ring), GFP_KERNEL);
-  if (ring == NULL) {
-    return -ENOMEM;
-  }
 
   monitor_task = kthread_run(monitor_fn, NULL, "monitor");
   if (IS_ERR(monitor_task)) {
@@ -174,7 +133,6 @@ static void __exit main_exit(void) {
     log_task = NULL;
   }
   pr_info("Module unloaded");
-  kfree(ring);
   return;
 }
 
