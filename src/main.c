@@ -11,7 +11,7 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 
-#define RING_BUF_SIZE 64
+#define RING_BUF_SIZE 10
 
 static int sleep_ms = 1000;
 
@@ -57,7 +57,7 @@ static bool ring_consume(struct ring_buf* r, struct snapshot* s) {
   }
 
   smp_rmb();
-  *s = r->entries[head % RING_BUF_SIZE];
+  *s = r->entries[tail % RING_BUF_SIZE];
   smp_mb();
 
   WRITE_ONCE(r->tail, tail + 1);
