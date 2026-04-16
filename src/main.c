@@ -64,7 +64,7 @@ static bool ring_consume(struct ring_buf* r, struct snapshot* s) {
   return true;
 }
 
-static void print_statistics(const char* name) {
+static void produce_snapshot(const char* name) {
   struct task_struct* task;
   int count = 0;
 
@@ -96,13 +96,6 @@ static int monitor_fn(void* data) {
   pr_info("Current kmonitor stats: pid=%d comm=%s\n", current->pid,
           current->comm);
 
-  struct snapshot* snapshots;
-  int snap_head = 0;
-  snapshots = kcalloc(RING_BUF_SIZE, sizeof(*snapshots), GFP_KERNEL);
-  if (snapshots == NULL) {
-    return -ENOMEM;
-  }
-
   while (!kthread_should_stop()) {
     unsigned long sleep_time_left = msleep_interruptible(sleep_ms);
     if (sleep_time_left != 0) {
@@ -114,8 +107,7 @@ static int monitor_fn(void* data) {
         if (sigismember(pending, SIGINT)) {
           pr_info("kmonitor: interrupted by SIGINT");
 
-          print_statistics("kmonitor");
-          snap_head++;
+          produce_snapshot("kmonitor");
           flush_signals(current);
           continue;
         }
@@ -128,20 +120,45 @@ static int monitor_fn(void* data) {
     }
   }
 
-  kfree(snapshots);
   return 0;
 }
 
-static struct task_struct* monitor_task;
+static int log_fn(void* data) {
+  struct snapshot s;
+  while (!kthread_should_stop()) {
+    msleep_interruptible(1000);
+    bool consumed = ring_consume(ring, &s);
+    if (consumed) {
+      pr_info("log: %lld: CPU %d, %d tasks alive, %d Mb free, %d Mb total\n",
+              s.ts, s.cpu, s.nr_procs, s.free_ram, s.total_ram);
+    } else {
+      pr_info("log: nothing to consume");
+    }
+  }
+
+  return 0;
+}
+
+static struct task_struct *monitor_task, *log_task;
 
 static int __init main_init(void) {
   pr_info("Current init stats: %d %s %d\n", current->pid, current->comm,
           current->tgid);
 
+  ring = kzalloc(sizeof(*ring), GFP_KERNEL);
+  if (ring == NULL) {
+    return -ENOMEM;
+  }
+
   monitor_task = kthread_run(monitor_fn, NULL, "monitor");
   if (IS_ERR(monitor_task)) {
     pr_err("Failed to create monitor task: %ld\n", PTR_ERR(monitor_task));
     return PTR_ERR(monitor_task);
+  }
+  log_task = kthread_run(log_fn, NULL, "log");
+  if (IS_ERR(log_task)) {
+    pr_err("Failed to create log task: %ld\n", PTR_ERR(log_task));
+    return PTR_ERR(log_task);
   }
   pr_info("Module loaded: sleep_ms=%d", sleep_ms);
   return 0;
@@ -152,7 +169,12 @@ static void __exit main_exit(void) {
     kthread_stop(monitor_task);
     monitor_task = NULL;
   }
+  if (log_task) {
+    kthread_stop(log_task);
+    log_task = NULL;
+  }
   pr_info("Module unloaded");
+  kfree(ring);
   return;
 }
 
