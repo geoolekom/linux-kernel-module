@@ -37,7 +37,7 @@ static int __init cpufreq2_init(void) {
 
 static void __exit cpufreq2_exit(void) {
   proc_remove(cpufreq_entry);
-  pr_info("cpufreq_info: /proc/cpufreq2_info created\n");
+  pr_info("cpufreq_info: /proc/cpufreq2_info deleted\n");
   return;
 }
 
