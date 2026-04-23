@@ -1,4 +1,5 @@
 #include <linux/cpufreq.h>
+#include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
@@ -23,10 +24,20 @@ static const struct proc_ops cpufreq_proc_ops = {
     .proc_release = single_release,
 };
 
-static int __init cpufreq2_init(void) { return 0; }
+static struct proc_dir_entry* cpufreq_entry;
+
+static int __init cpufreq2_init(void) {
+  cpufreq_entry = proc_create("cpufreq2_info", 0444, NULL, &cpufreq_proc_ops);
+  if (cpufreq_entry == NULL) {
+    return -ENOMEM;
+  }
+  pr_info("cpufreq_info: /proc/cpufreq2_info created\n");
+  return 0;
+}
 
 static void __exit cpufreq2_exit(void) {
-  pr_info("Goodbye, kernel!\n");
+  proc_remove(cpufreq_entry);
+  pr_info("cpufreq_info: /proc/cpufreq2_info created\n");
   return;
 }
 
