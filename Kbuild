@@ -16,6 +16,9 @@ schedinfo-objs := src/schedinfo.o
 obj-m += cpufreq2.o
 cpufreq2-objs := src/cpufreq2.o
 
+obj-m += myfw.o
+myfw-objs := src/myfw.o
+
 # For multiple modules in subdirectories:
 # obj-m += module2.o
 # module2-objs := src/module2/main.o src/module2/helper.o
