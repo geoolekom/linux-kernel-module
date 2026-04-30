@@ -87,11 +87,27 @@ static int monitor_open(struct inode* i, struct file* f) {
   return single_open(f, monitor_show, NULL);
 }
 
+static ssize_t monitor_write(struct file* file, const char __user* buf,
+                             size_t count, loff_t*) {
+  char kbuf[16];
+  if (count > sizeof(kbuf)) {
+    return -EINVAL;
+  }
+  if (copy_from_user(kbuf, buf, count)) {
+    return -EFAULT;
+  }
+
+  pr_info("Received %s", kbuf);
+  kbuf[count] = '\0';
+  return count;
+}
+
 static const struct proc_ops monitor_proc_ops = {
     .proc_open = monitor_open,
     .proc_read = seq_read,
     .proc_lseek = seq_lseek,
     .proc_release = single_release,
+    .proc_write = monitor_write,
 };
 
 static struct task_struct* monitor_task;
