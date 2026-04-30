@@ -1,6 +1,7 @@
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/kfifo.h>
+#include <linux/kobject.h>
 #include <linux/kthread.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -30,6 +31,27 @@ struct snapshot {
 };
 
 static DEFINE_KFIFO(snap_fifo, struct snapshot, QUEUE_SIZE);
+
+static ssize_t interval_show(struct kobject* kobj, struct kobj_attribute* attr,
+                             char* buf) {
+  return sysfs_emit(buf, "%d\n", sleep_ms);
+}
+
+static ssize_t interval_store(struct kobject* kobj, struct kobj_attribute* attr,
+                              const char* buf, size_t count) {
+  int temp;
+  int err = kstrtoint(buf, 10, &temp);
+  if (err) {
+    pr_warn("Wrong number: %s, temp: %d\n", buf, temp);
+    return err;
+  }
+  sleep_ms = temp;
+  pr_info("New sleep ms: %d\n", sleep_ms);
+  return count;
+}
+
+static struct kobj_attribute interval_attr =
+    __ATTR(interval, 0644, interval_show, interval_store);
 
 static void produce_snapshot(const char* name) {
   struct task_struct* task;
@@ -87,34 +109,29 @@ static int monitor_open(struct inode* i, struct file* f) {
   return single_open(f, monitor_show, NULL);
 }
 
-static ssize_t monitor_write(struct file* file, const char __user* buf,
-                             size_t count, loff_t*) {
-  char kbuf[16];
-  if (count > sizeof(kbuf)) {
-    return -EINVAL;
-  }
-  if (copy_from_user(kbuf, buf, count)) {
-    return -EFAULT;
-  }
-
-  pr_info("Received %s", kbuf);
-  kbuf[count] = '\0';
-  return count;
-}
-
 static const struct proc_ops monitor_proc_ops = {
     .proc_open = monitor_open,
     .proc_read = seq_read,
     .proc_lseek = seq_lseek,
     .proc_release = single_release,
-    .proc_write = monitor_write,
 };
 
 static struct task_struct* monitor_task;
+static struct kobject* monitor_kobj;
 
 static int __init main_init(void) {
   pr_info("Current init stats: %d %s %d\n", current->pid, current->comm,
           current->tgid);
+
+  monitor_kobj = kobject_create_and_add("monitor_info", kernel_kobj);
+  if (monitor_kobj == NULL) {
+    return -ENOMEM;
+  }
+
+  if (sysfs_create_file(monitor_kobj, &interval_attr.attr)) {
+    kobject_put(monitor_kobj);
+    return -ENOMEM;
+  }
 
   monitor_entry = proc_create("monitor_info", 0444, NULL, &monitor_proc_ops);
   if (monitor_entry == NULL) {
@@ -138,6 +155,8 @@ static void __exit main_exit(void) {
     monitor_task = NULL;
   }
   proc_remove(monitor_entry);
+  sysfs_remove_file(monitor_kobj, &interval_attr.attr);
+  kobject_put(monitor_kobj);
   pr_info("monitor: /proc/monitor_info deleted\n");
   pr_info("Module unloaded");
   return;
